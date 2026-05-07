@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     CallbackQueryHandler, filters,
@@ -20,17 +19,29 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def main():
+async def post_init(application) -> None:
+    """Called by python-telegram-bot after the app is initialised."""
     await init_db()
     logger.info("Database initialised")
-
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-
-    # Register bot reference so APScheduler jobs can send Telegram messages
-    set_bot(app.bot)
-
+    set_bot(application.bot)
     scheduler.start()
     logger.info("Scheduler started")
+
+
+async def post_shutdown(application) -> None:
+    """Called by python-telegram-bot on shutdown."""
+    scheduler.shutdown()
+    logger.info("Scheduler stopped")
+
+
+def main():
+    app = (
+        ApplicationBuilder()
+        .token(TELEGRAM_BOT_TOKEN)
+        .post_init(post_init)
+        .post_shutdown(post_shutdown)
+        .build()
+    )
 
     # Command handlers
     app.add_handler(CommandHandler("start", start))
@@ -49,12 +60,8 @@ async def main():
     app.add_handler(CallbackQueryHandler(clear_callback, pattern="^(confirm|cancel)_clear$"))
 
     logger.info("Bot starting (long-polling)...")
-    try:
-        await app.run_polling()
-    finally:
-        scheduler.shutdown()
-        logger.info("Scheduler stopped")
+    app.run_polling()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
