@@ -1,19 +1,23 @@
 import asyncio
 import json
 import logging
-from groq import AsyncGroq
-from config import GROQ_API_KEY
+import google.generativeai as genai
+from config import GEMINI_API_KEY
 from core import groq_semaphore
 
 logger = logging.getLogger(__name__)
-groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+genai.configure(api_key=GEMINI_API_KEY)
+_model = genai.GenerativeModel(
+    model_name="gemini-2.0-flash",
+    generation_config=genai.GenerationConfig(temperature=0),
+    system_instruction=(
+        "You are a job relevance scorer. Given a candidate profile and a job posting, "
+        "return ONLY valid JSON: {\"score\": <integer 1-10>, \"reason\": \"<brief reason>\"}. "
+        "No markdown, no explanation."
+    ),
+)
 
 _BATCH_CAP = 50
-_SCORE_SYSTEM_PROMPT = (
-    "You are a job relevance scorer. Given a candidate profile and a job posting, "
-    "return ONLY valid JSON: {\"score\": <integer 1-10>, \"reason\": \"<brief reason>\"}. "
-    "No markdown, no explanation."
-)
 
 
 async def score_job(profile_json: str, job: dict) -> dict | None:
@@ -25,25 +29,24 @@ async def score_job(profile_json: str, job: dict) -> dict | None:
     )
     try:
         async with groq_semaphore:
-            response = await groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": _SCORE_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0,
-            )
-            await asyncio.sleep(2)
+            response = await _model.generate_content_async(user_prompt)
+            await asyncio.sleep(1)
 
-        raw = response.choices[0].message.content.strip()
+        raw = response.text.strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
         data = json.loads(raw)
         score = max(1, min(10, int(data["score"])))
         return {**job, "score": score, "reason": data.get("reason", "")}
     except json.JSONDecodeError:
-        logger.warning(f"Bad JSON from Groq scoring: {job.get('title', '?')}")
+        logger.warning(f"Bad JSON from Gemini scoring: {job.get('title', '?')}")
         return None
     except Exception as e:
-        logger.error(f"Groq scoring error: {e}")
+        logger.error(f"Gemini scoring error: {e}")
         raise
 
 

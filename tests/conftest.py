@@ -7,7 +7,7 @@ from sqlmodel import SQLModel
 
 # Set dummy env vars before any project imports that touch config.py
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token")
-os.environ.setdefault("GROQ_API_KEY", "test_groq_key")
+os.environ.setdefault("GEMINI_API_KEY", "test_gemini_key")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
 import db.models  # noqa: F401 — ensure models are registered before create_all
