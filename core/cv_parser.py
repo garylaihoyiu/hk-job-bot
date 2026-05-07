@@ -7,7 +7,7 @@ from config import GEMINI_API_KEY
 logger = logging.getLogger(__name__)
 genai.configure(api_key=GEMINI_API_KEY)
 _model = genai.GenerativeModel(
-    model_name="gemini-2.0-flash-lite",
+    model_name="gemini-2.0-flash",
     generation_config=genai.GenerationConfig(temperature=0),
     system_instruction=(
         "You are a CV parser. Extract structured information and return ONLY valid JSON with keys: "
