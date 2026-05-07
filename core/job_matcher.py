@@ -1,20 +1,22 @@
 import asyncio
 import json
 import logging
-import google.generativeai as genai
-from config import GEMINI_API_KEY
+from openai import AsyncOpenAI
+from config import OPENROUTER_API_KEY
 from core import groq_semaphore
 
 logger = logging.getLogger(__name__)
-genai.configure(api_key=GEMINI_API_KEY)
-_model = genai.GenerativeModel(
-    model_name="gemini-2.0-flash",
-    generation_config=genai.GenerationConfig(temperature=0),
-    system_instruction=(
-        "You are a job relevance scorer. Given a candidate profile and a job posting, "
-        "return ONLY valid JSON: {\"score\": <integer 1-10>, \"reason\": \"<brief reason>\"}. "
-        "No markdown, no explanation."
-    ),
+
+_client = AsyncOpenAI(
+    api_key=OPENROUTER_API_KEY,
+    base_url="https://openrouter.ai/api/v1",
+)
+_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
+
+_SCORER_SYSTEM_PROMPT = (
+    "You are a job relevance scorer. Given a candidate profile and a job posting, "
+    "return ONLY valid JSON: {\"score\": <integer 1-10>, \"reason\": \"<brief reason>\"}. "
+    "No markdown, no explanation."
 )
 
 _BATCH_CAP = 50
@@ -29,10 +31,17 @@ async def score_job(profile_json: str, job: dict) -> dict | None:
     )
     try:
         async with groq_semaphore:
-            response = await _model.generate_content_async(user_prompt)
+            response = await _client.chat.completions.create(
+                model=_MODEL,
+                messages=[
+                    {"role": "system", "content": _SCORER_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0,
+            )
             await asyncio.sleep(1)
 
-        raw = response.text.strip()
+        raw = response.choices[0].message.content.strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
