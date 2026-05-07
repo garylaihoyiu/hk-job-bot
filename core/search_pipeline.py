@@ -121,7 +121,7 @@ async def run_search_for_user(
         except Exception as e:
             error_str = str(e).lower()
             if "rate_limit" in error_str or "429" in error_str:
-                await bot.send_message(telegram_id, "⚠️ Groq API rate limit hit. Retrying in 60s...")
+                await bot.send_message(telegram_id, "⚠️ AI rate limit hit. Retrying in 60s...")
                 await asyncio.sleep(60)
                 try:
                     matched = await score_jobs_batch(profile_json, new_jobs, threshold=7)

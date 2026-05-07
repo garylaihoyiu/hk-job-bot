@@ -108,7 +108,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         error_msg = str(e).lower()
         if "rate_limit" in error_msg or "429" in error_msg:
             await update.message.reply_text(
-                "⚠️ Groq API rate limit hit. Please try /upload again in a minute."
+                "⚠️ AI rate limit hit. Please try /upload again in a minute."
             )
         elif "quota" in error_msg or "exceeded" in error_msg:
             await update.message.reply_text(

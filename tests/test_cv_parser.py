@@ -1,11 +1,11 @@
 import os
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token")
-os.environ.setdefault("GROQ_API_KEY", "test_key")
+os.environ.setdefault("GEMINI_API_KEY", "test_key")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
 import json
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from core.cv_parser import extract_text_from_bytes, parse_cv_with_groq
 
 
@@ -29,19 +29,17 @@ def test_extract_text_wrong_extension_raises():
         extract_text_from_bytes(b"data", "image.jpg")
 
 
-def _mock_response(content: str):
-    return type("R", (), {
-        "choices": [type("C", (), {
-            "message": type("M", (), {"content": content})()
-        })()]
-    })()
+def _mock_gemini_response(text: str):
+    mock_resp = MagicMock()
+    mock_resp.text = text
+    return mock_resp
 
 
 @pytest.mark.asyncio
 async def test_parse_cv_returns_valid_profile():
     mock_content = '{"job_titles": ["Software Engineer"], "skills": ["Python"], "experience_years": 3, "education": "BSc CS", "languages": ["English"]}'
-    with patch("core.cv_parser.groq_client") as mock_client:
-        mock_client.chat.completions.create = AsyncMock(return_value=_mock_response(mock_content))
+    with patch("core.cv_parser._model") as mock_model:
+        mock_model.generate_content_async = AsyncMock(return_value=_mock_gemini_response(mock_content))
         result = await parse_cv_with_groq("John Doe\nSoftware Engineer")
     assert result is not None
     data = json.loads(result)
@@ -51,7 +49,7 @@ async def test_parse_cv_returns_valid_profile():
 
 @pytest.mark.asyncio
 async def test_parse_cv_returns_none_on_bad_json():
-    with patch("core.cv_parser.groq_client") as mock_client:
-        mock_client.chat.completions.create = AsyncMock(return_value=_mock_response("not json at all"))
+    with patch("core.cv_parser._model") as mock_model:
+        mock_model.generate_content_async = AsyncMock(return_value=_mock_gemini_response("not json at all"))
         result = await parse_cv_with_groq("some cv text")
     assert result is None
